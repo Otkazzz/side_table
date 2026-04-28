@@ -13,7 +13,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { selectIsHost, useRoomStore } from '@/stores/useRoomStore';
 
 const GAME_DESCRIPTIONS: Record<GameId, string> = {
-  blackjack: 'Affrontez le gros fdp — trizo 21 ou rien.',
+  blackjack: 'Affrontez le crupier — 21 ou rien.',
   poker: 'Bluff, mises et nerfs d’acier.',
   roulette: 'Rouge, noir, ou la chance du zéro.',
 };
