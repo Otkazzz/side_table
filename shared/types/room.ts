@@ -64,6 +64,10 @@ export type Ack<T> =
   | { ok: true; data: T }
   | { ok: false; error: RoomError };
 
+export interface StartGamePayload {
+  gameId: GameId;
+}
+
 export type CreateRoomAck = Ack<PublicRoom>;
 export type JoinRoomAck = Ack<PublicRoom>;
 export type LeaveRoomAck = Ack<null>;
@@ -99,7 +103,10 @@ export interface ClientToServerEvents {
     ack: (response: JoinRoomAck) => void,
   ) => void;
   'room:leave': (ack: (response: LeaveRoomAck) => void) => void;
-  'room:start': (ack: (response: StartGameAck) => void) => void;
+  'room:start': (
+    payload: StartGamePayload,
+    ack: (response: StartGameAck) => void,
+  ) => void;
 }
 
 /** Aucun event inter-serveur pour l'instant (mono-instance). */
@@ -114,10 +121,47 @@ export interface SocketData {
   roomCode?: string;
 }
 
+/* ------------------------------- Jeux ----------------------------------- */
+
+/**
+ * Identifiants des jeux supportés.
+ * Source de vérité : `GAME_DEFINITIONS` ci-dessous.
+ */
+export type GameId = 'blackjack' | 'poker' | 'roulette';
+
+export interface GameDefinition {
+  id: GameId;
+  label: string;
+  /** Nombre **minimum** de joueurs requis pour lancer ce jeu. */
+  minPlayers: number;
+}
+
+/**
+ * Source de vérité partagée client/serveur pour les contraintes par jeu.
+ *
+ * Toute évolution (ajout d'un jeu, changement de min joueurs) se fait ici
+ * pour rester cohérent entre la validation UI et la validation serveur.
+ */
+export const GAME_DEFINITIONS: Readonly<Record<GameId, GameDefinition>> = {
+  blackjack: { id: 'blackjack', label: 'Blackjack', minPlayers: 1 },
+  poker: { id: 'poker', label: 'Poker', minPlayers: 2 },
+  roulette: { id: 'roulette', label: 'Roulette', minPlayers: 1 },
+} as const;
+
+export const GAME_IDS = Object.keys(GAME_DEFINITIONS) as readonly GameId[];
+
+export function isGameId(value: unknown): value is GameId {
+  return typeof value === 'string' && value in GAME_DEFINITIONS;
+}
+
 /* ----------------------------- Constantes ------------------------------- */
 
 export const ROOM_CONSTRAINTS = {
-  MIN_PLAYERS_TO_START: 2,
+  /**
+   * Borne **plancher** du nombre de joueurs par room. La valeur effective
+   * exigée pour lancer une partie dépend du jeu choisi (cf. `GAME_DEFINITIONS`).
+   */
+  MIN_PLAYERS_TO_START: 1,
   DEFAULT_MAX_PLAYERS: 6,
   MAX_PLAYERS_HARD_CAP: 6,
   USERNAME_MIN_LENGTH: 2,

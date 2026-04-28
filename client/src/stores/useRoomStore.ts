@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import type {
   CreateRoomAck,
+  GameId,
   JoinRoomAck,
   LeaveRoomAck,
   PublicRoom,
@@ -52,7 +53,7 @@ interface RoomState {
 
   leaveRoom: (socket: CasinoSocket) => Promise<LeaveRoomAck>;
 
-  startGame: (socket: CasinoSocket) => Promise<StartGameAck>;
+  startGame: (socket: CasinoSocket, gameId: GameId) => Promise<StartGameAck>;
 }
 
 /**
@@ -156,9 +157,9 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     });
   },
 
-  startGame: (socket) => {
+  startGame: (socket, gameId) => {
     return new Promise<StartGameAck>((resolve) => {
-      socket.emit('room:start', (response) => {
+      socket.emit('room:start', { gameId }, (response) => {
         if (!response.ok) {
           set({ error: response.error });
         }

@@ -2,11 +2,33 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { ROOM_CONSTRAINTS } from '@shared/types/room';
+import { GAME_DEFINITIONS, GAME_IDS, type GameId } from '@shared/types/room';
+
+import blackjackImg from '@/image/bj.jpg';
+import pokerImg from '@/image/poker.jpg';
+import rouletteImg from '@/image/roulette.jpg';
 
 import { PlayerList } from '@/components/PlayerList';
 import { useSocket } from '@/hooks/useSocket';
 import { selectIsHost, useRoomStore } from '@/stores/useRoomStore';
+
+const GAME_DESCRIPTIONS: Record<GameId, string> = {
+  blackjack: 'Affrontez le gros fdp — trizo 21 ou rien.',
+  poker: 'Bluff, mises et nerfs d’acier.',
+  roulette: 'Rouge, noir, ou la chance du zéro.',
+};
+
+const GAME_IMAGES: Record<GameId, string> = {
+  blackjack: blackjackImg,
+  poker: pokerImg,
+  roulette: rouletteImg,
+};
+
+const GAME_OPTIONS = GAME_IDS.map((id) => ({
+  ...GAME_DEFINITIONS[id],
+  description: GAME_DESCRIPTIONS[id],
+  image: GAME_IMAGES[id],
+}));
 
 /**
  * Page d'une room : affiche la liste des joueurs en temps réel et expose
@@ -30,6 +52,7 @@ export function RoomPage(): JSX.Element {
   const clearError = useRoomStore((s) => s.clearError);
 
   const [copied, setCopied] = useState<boolean>(false);
+  const [selectedGame, setSelectedGame] = useState<GameId | null>(null);
 
   // Garde-fou : sans room en mémoire, on renvoie au lobby.
   // Cela couvre : refresh de la page, navigation directe par URL, etc.
@@ -53,7 +76,8 @@ export function RoomPage(): JSX.Element {
   };
 
   const handleStart = async (): Promise<void> => {
-    await startGame(socket);
+    if (!selectedGame) return;
+    await startGame(socket, selectedGame);
     // Pour ce ticket on reste sur la page et on affiche juste le statut :
     // c'est la prochaine itération (game engine Blackjack) qui ajoutera
     // une route /game/:code et la navigation correspondante.
@@ -80,10 +104,28 @@ export function RoomPage(): JSX.Element {
   }
 
   const playersCount = currentRoom.players.length;
+  const selectedGameMeta =
+    GAME_OPTIONS.find((g) => g.id === selectedGame) ?? null;
+  const minPlayersForGame = selectedGameMeta?.minPlayers ?? null;
+  const hasEnoughPlayersForGame =
+    minPlayersForGame !== null && playersCount >= minPlayersForGame;
   const canStart =
     isHost &&
     currentRoom.status === 'waiting' &&
-    playersCount >= ROOM_CONSTRAINTS.MIN_PLAYERS_TO_START;
+    selectedGameMeta !== null &&
+    hasEnoughPlayersForGame;
+
+  const launchHelperText = ((): string => {
+    if (!selectedGameMeta) {
+      return 'Choisis un jeu pour pouvoir lancer la partie !';
+    }
+    if (!hasEnoughPlayersForGame) {
+      const min = selectedGameMeta.minPlayers;
+      const plural = min > 1 ? 'joueurs' : 'joueur';
+      return `Il faut au moins ${min} ${plural} pour lancer ${selectedGameMeta.label}.`;
+    }
+    return `Quand tout le monde est prêt, lance ${selectedGameMeta.label}.`;
+  })();
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-6 py-10">
@@ -130,14 +172,92 @@ export function RoomPage(): JSX.Element {
           maxPlayers={currentRoom.maxPlayers}
         />
 
+      </section>
+
+      <section className="card mt-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Choix du jeu</h2>
+          {selectedGameMeta && (
+            <span className="rounded-full bg-gold-500/20 px-3 py-1 text-xs font-semibold text-gold-400">
+              {selectedGameMeta.label}
+            </span>
+          )}
+        </div>
+
+        <div
+          role="radiogroup"
+          aria-label="Sélection du jeu"
+          className="grid gap-3 sm:grid-cols-3"
+        >
+          {GAME_OPTIONS.map((game) => {
+            const isSelected = selectedGame === game.id;
+            const disabled = !isHost;
+            return (
+              <button
+                key={game.id}
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                disabled={disabled}
+                onClick={() =>
+                  setSelectedGame((prev) => (prev === game.id ? null : game.id))
+                }
+                className={[
+                  'group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all',
+                  'disabled:cursor-not-allowed disabled:opacity-60',
+                  isSelected
+                    ? 'border-gold-400 bg-gold-500/10 shadow-[0_0_0_1px_rgba(212,175,55,0.4)]'
+                    : 'border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/10',
+                ].join(' ')}
+              >
+                <div
+                  className={[
+                    'relative h-16 w-full overflow-hidden rounded-lg',
+                    'ring-1 transition-all',
+                    isSelected ? 'ring-gold-400/60' : 'ring-white/10',
+                  ].join(' ')}
+                >
+                  <img
+                    src={game.image}
+                    alt=""
+                    aria-hidden
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                </div>
+
+                <div className="flex w-full items-center justify-between px-1">
+                  <span className="font-semibold text-white">{game.label}</span>
+                  <span
+                    aria-hidden
+                    className={[
+                      'flex h-5 w-5 items-center justify-center rounded-full border',
+                      isSelected
+                        ? 'border-gold-400 bg-gold-400'
+                        : 'border-white/30 bg-transparent',
+                    ].join(' ')}
+                  >
+                    {isSelected && (
+                      <span className="h-2 w-2 rounded-full bg-felt-900" />
+                    )}
+                  </span>
+                </div>
+                <p className="px-1 text-xs text-white/60">{game.description}</p>
+                <p className="px-1 text-[11px] uppercase tracking-wider text-white/40">
+                  {game.minPlayers === 1
+                    ? '1 joueur min.'
+                    : `${game.minPlayers} joueurs min.`}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {isHost ? (
             <>
-              <p className="text-sm text-white/60">
-                {playersCount < ROOM_CONSTRAINTS.MIN_PLAYERS_TO_START
-                  ? `Il faut au moins ${ROOM_CONSTRAINTS.MIN_PLAYERS_TO_START} joueurs pour lancer la partie.`
-                  : 'Quand tout le monde est prêt, lance la partie.'}
-              </p>
+              <p className="text-sm text-white/60">{launchHelperText}</p>
               <button
                 type="button"
                 onClick={handleStart}
@@ -149,7 +269,9 @@ export function RoomPage(): JSX.Element {
             </>
           ) : (
             <p className="text-sm text-white/60">
-              En attente que l'hôte lance la partie…
+              {selectedGameMeta
+                ? `En attente que l'hôte lance ${selectedGameMeta.label}…`
+                : "En attente que l'hôte choisisse un jeu…"}
             </p>
           )}
         </div>
