@@ -137,9 +137,9 @@ export function registerRoomHandlers(
     }
   });
 
-  socket.on('room:start', (ack) => {
+  socket.on('room:start', (payload, ack) => {
     try {
-      const room = rooms.startGame(socket.id);
+      const room = rooms.startGame(socket.id, payload?.gameId);
       const publicRoom = rooms.toPublic(room);
       const response: StartGameAck = { ok: true, data: publicRoom };
       safeAck(ack, response);

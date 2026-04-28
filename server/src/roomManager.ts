@@ -1,5 +1,8 @@
 import {
+  GAME_DEFINITIONS,
+  isGameId,
   ROOM_CONSTRAINTS,
+  type GameId,
   type Player,
   type PublicRoom,
   type RoomError,
@@ -257,7 +260,14 @@ export class RoomManager {
     return { room, code };
   }
 
-  public startGame(socketId: string): InternalRoom {
+  public startGame(socketId: string, gameId: GameId): InternalRoom {
+    if (!isGameId(gameId)) {
+      throw new RoomManagerError({
+        code: 'INVALID_INPUT',
+        message: 'Jeu inconnu ou non supporté.',
+      });
+    }
+
     const room = this.getRoomBySocketId(socketId);
     if (!room) {
       throw new RoomManagerError({
@@ -277,10 +287,13 @@ export class RoomManager {
         message: 'La partie est déjà en cours.',
       });
     }
-    if (room.players.length < ROOM_CONSTRAINTS.MIN_PLAYERS_TO_START) {
+
+    const definition = GAME_DEFINITIONS[gameId];
+    if (room.players.length < definition.minPlayers) {
+      const plural = definition.minPlayers > 1 ? 'joueurs' : 'joueur';
       throw new RoomManagerError({
         code: 'NOT_ENOUGH_PLAYERS',
-        message: `Il faut au moins ${ROOM_CONSTRAINTS.MIN_PLAYERS_TO_START} joueurs pour lancer la partie.`,
+        message: `Il faut au moins ${definition.minPlayers} ${plural} pour lancer ${definition.label}.`,
       });
     }
 
